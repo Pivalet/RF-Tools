@@ -17,7 +17,7 @@
         }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; }
         .container { width: 100%; max-width: 500px; padding: 12px; box-sizing: border-box; }
-        .screen { display: none; background: var(--card); min-height: 98vh; padding: 15px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .screen { position: relative; display: none; background: var(--card); min-height: 98vh; padding: 15px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         .screen.active { display: block; }
 
         h1, h2 { color: var(--primary); margin-top: 0; border-bottom: 2px solid var(--primary); padding-bottom: 5px; text-align: center; }
@@ -57,19 +57,44 @@
         .formula { background: #f8f9fa; padding: 10px; border-radius: 4px; border-left: 4px solid var(--primary); font-family: 'Courier New', Courier, monospace; font-size: 0.9rem; margin: 10px 0; }
         .explanation { font-size: 0.9rem; color: #444; line-height: 1.4; margin-bottom: 10px; }
         ul.bullet-list { padding-left: 20px; font-size: 0.85rem; color: #444; }
-    </style>
+    
+.footer-tag {
+    position: absolute;
+    bottom: 10px;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    font-size: 0.75rem;
+    color: #7a8a99;
+    opacity: 0.8;
+}
+
+</style>
 </head>
 <body>
 
 <div class="container">
     <div id="main-menu" class="screen active">
         <h1>RF Engineering Tool</h1>
+<div class="input-card">
+    <label>Display Mode</label>
+    <div class="row">
+        <select onchange="setTheme(this.value)">
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="grey">Greyscale</option>
+        </select>
+    </div>
+</div>
+
         <button class="nav-btn" onclick="openScreen('calc-db')">dBm &harr; Watt &harr; dBW</button>
         <button class="nav-btn" onclick="openScreen('calc-fsl')">Free Space Loss / Distance</button>
         <button class="nav-btn" onclick="openScreen('calc-wave')">Wavelength (&lambda; & &lambda;/2)</button>
         <button class="nav-btn" onclick="openScreen('calc-doppler')">Doppler & Velocity</button>
         <button class="nav-btn" onclick="openScreen('calc-phased')">Phased Array Parameters</button>
-    </div>
+        <button class="nav-btn" onclick="openScreen('calc-fresnel')">Far Field / Fresnel Distance</button>
+        <div class="footer-tag">created by Pivalet &copy; 2026</div>
+</div>
 
     <!-- CALC SCREENS -->
     <div id="calc-db" class="screen">
@@ -143,6 +168,32 @@
         <div class="result-box" id="dop-res">Shift: --</div>
     </div>
 
+    
+    <div id="calc-fresnel" class="screen">
+        <a href="#" class="back-link" onclick="goHome()">&larr; Back</a>
+        <button class="info-btn" onclick="showInfo('fresnel-info')">i</button>
+        <h2>Far Field / Fresnel Distance</h2>
+
+        <div class="input-card">
+            <label>Frequency</label>
+            <div class="row">
+                <input type="number" id="fr-f" value="5" oninput="calcFresnel()">
+                <select id="fr-f-u" onchange="calcFresnel()">
+                    <option value="1e6">MHz</option>
+                    <option value="1e9" selected>GHz</option>
+                </select>
+            </div>
+
+            <label>Antenna Diameter (m)</label>
+            <div class="row">
+                <input type="number" id="fr-d" value="1" oninput="calcFresnel()">
+            </div>
+        </div>
+
+        <div class="result-box" id="fr-res">Distance: --</div>
+    </div>
+
+
     <div id="calc-phased" class="screen">
         <a href="#" class="back-link" onclick="goHome()">&larr; Back</a>
         <button class="info-btn" onclick="showInfo('phased-info')">i</button>
@@ -177,7 +228,8 @@
             <div class="row" style="justify-content:center"><input type="number" id="pa-angle" value="0" style="width:70px; text-align:center;" oninput="calcPA()"></div>
             <input type="range" id="pa-slider" min="-90" max="90" value="0" oninput="syncSlider(this.value)">
         </div>
-    </div>
+    
+
 </div>
 
 <!-- OVERLAYS -->
@@ -358,5 +410,31 @@
         });
     }
 </script>
+
+<script>
+function setTheme(mode){
+    if(mode==='dark'){
+        document.documentElement.style.setProperty('--bg','#1e1e1e');
+        document.documentElement.style.setProperty('--card','#2c2c2c');
+        document.documentElement.style.setProperty('--text','#ffffff');
+    } else if(mode==='grey'){
+        document.documentElement.style.setProperty('--bg','#888');
+        document.documentElement.style.setProperty('--card','#ccc');
+        document.documentElement.style.setProperty('--text','#000');
+    } else {
+        location.reload();
+    }
+}
+
+function calcFresnel(){
+    const f = document.getElementById('fr-f').value * document.getElementById('fr-f-u').value;
+    const D = document.getElementById('fr-d').value;
+    const c = 3e8;
+    const lambda = c / f;
+    const R = (2 * D * D) / lambda;
+    document.getElementById('fr-res').innerText = "Far Field Distance: " + R.toFixed(2) + " m";
+}
+</script>
+
 </body>
 </html>
