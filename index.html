@@ -4,7 +4,66 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>RF Engineering Pro-Calc v1.2</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js">
+function calcBW() {
+    const nAz = parseFloat(document.getElementById('bw-n-az').value) || 1;
+    const nEl = parseFloat(document.getElementById('bw-n-el').value) || 1;
+    const dAz = (parseFloat(document.getElementById('bw-d-az').value) || 1) * parseFloat(document.getElementById('bw-d-u').value);
+    const dEl = (parseFloat(document.getElementById('bw-d-el').value) || 1) * parseFloat(document.getElementById('bw-d-u').value);
+    const fStart = (parseFloat(document.getElementById('bw-f-start').value) || 1) * parseFloat(document.getElementById('bw-f-start-u').value);
+    const fStop = (parseFloat(document.getElementById('bw-f-stop').value) || 1) * parseFloat(document.getElementById('bw-f-stop-u').value);
+    let fStep = (parseFloat(document.getElementById('bw-f-step').value) || 1) * parseFloat(document.getElementById('bw-f-step-u').value);
+    
+    if (fStep <= 0) fStep = 1e6;
+    const c = 299792458;
+    
+    let html = '<table style="width:100%; border-collapse: collapse; font-size: 0.8rem; text-align: center;">';
+    html += '<tr style="background:#eee; border-bottom:1px solid #ccc;"><th>Freq (GHz)</th><th>Az BW°</th><th>El BW°</th><th>Az FOV°</th><th>El FOV°</th></tr>';
+    
+    let count = 0;
+    for (let f = fStart; f <= fStop && count < 100; f += fStep) {
+        const lambda = (c / f) * 1000;
+        const bwAz = (50.7 * lambda) / (nAz * dAz);
+        const bwEl = (50.7 * lambda) / (nEl * dEl);
+        const fovAz = (50.7 * lambda) / dAz;
+        const fovEl = (50.7 * lambda) / dEl;
+        
+        html += `<tr style="border-bottom:1px solid #eee;">
+            <td style="padding:5px;">${(f/1e9).toFixed(3)}</td>
+            <td>${bwAz.toFixed(2)}</td>
+            <td>${bwEl.toFixed(2)}</td>
+            <td>${fovAz.toFixed(2)}</td>
+            <td>${fovEl.toFixed(2)}</td>
+        </tr>`;
+        count++;
+        if (f + fStep > fStop && f < fStop) f = fStop - fStep;
+    }
+    html += '</table>';
+    document.getElementById('bw-res-table').innerHTML = html;
+}
+
+// Fixed Theme Switcher
+function setTheme(val) {
+    document.body.className = val + '-theme';
+    localStorage.setItem('rf-theme', val);
+}
+
+// Handle initialization
+window.addEventListener('DOMContentLoaded', () => {
+    const saved = localStorage.getItem('rf-theme') || 'light';
+    setTheme(saved);
+    const sel = document.querySelector('select[onchange^="setTheme"]');
+    if (sel) sel.value = saved;
+});
+
+// Patch openScreen to update table
+const oldOpen = openScreen;
+openScreen = (id) => {
+    oldOpen(id);
+    if (id === 'calc-bw') calcBW();
+}
+
+</script>
     <style>
         :root {
             --primary: #004a99;
@@ -47,7 +106,9 @@
         .steer-card { background: #eee; padding: 15px; border-radius: 8px; margin-top: 15px; }
         input[type="range"] { width: 100%; height: 10px; cursor: pointer; accent-color: var(--primary); }
 
-        .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 1000; padding: 20px; box-sizing: border-box; overflow-y: auto; }
+        .overlay {
+    display: none;
+    display: none; display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 1000; padding: 20px; box-sizing: border-box; overflow-y: auto; }
         .info-btn { float: right; background: var(--primary); color: white; border: none; width: 35px; height: 35px; border-radius: 50%; font-weight: bold; }
         
         .diagram-box { background: #fff; border: 1px solid #ddd; border-radius: 8px; margin: 15px 0; padding: 10px; display: flex; justify-content: center; align-items: center; flex-direction: column; }
@@ -70,6 +131,40 @@
 }
 
 </style>
+
+<style>
+body.light-theme {
+    background: #f4f6f9;
+    color: #222;
+}
+
+body.dark-theme {
+    background: #1e1e1e;
+    color: #fff;
+}
+
+body.dark-theme .screen,
+body.dark-theme .input-card,
+body.dark-theme .result-box,
+body.dark-theme .overlay {
+    background: #2c2c2c !important;
+    color: #fff !important;
+}
+
+body.grey-theme {
+    background: #9a9a9a;
+    color: #111;
+}
+
+body.grey-theme .screen,
+body.grey-theme .input-card,
+body.grey-theme .result-box,
+body.grey-theme .overlay {
+    background: #d6d6d6 !important;
+    color: #111 !important;
+}
+</style>
+
 </head>
 <body>
 
@@ -93,6 +188,7 @@
         <button class="nav-btn" onclick="openScreen('calc-doppler')">Doppler & Velocity</button>
         <button class="nav-btn" onclick="openScreen('calc-phased')">Phased Array Parameters</button>
         <button class="nav-btn" onclick="openScreen('calc-fresnel')">Far Field / Fresnel Distance</button>
+        <button class="nav-btn" onclick="openScreen('calc-bw')">Antenna BW & FOV</button>
         <div class="footer-tag">created by Pivalet &copy; 2026</div>
 </div>
 
@@ -169,32 +265,39 @@
     </div>
 
     
-    <div id="calc-fresnel" class="screen">
-        <a href="#" class="back-link" onclick="goHome()">&larr; Back</a>
-        <button class="info-btn" onclick="showInfo('fresnel-info')">i</button>
-        <h2>Far Field / Fresnel Distance</h2>
+    
+<div id="calc-fresnel" class="screen">
+    <a href="#" class="back-link" onclick="goHome()">&larr; Back</a>
+    <button class="info-btn" onclick="showInfo('fresnel-info')">i</button>
 
-        <div class="input-card">
-            <label>Frequency</label>
-            <div class="row">
-                <input type="number" id="fr-f" value="5" oninput="calcFresnel()">
-                <select id="fr-f-u" onchange="calcFresnel()">
-                    <option value="1e6">MHz</option>
-                    <option value="1e9" selected>GHz</option>
-                </select>
-            </div>
+    <h2>Far Field / Fresnel Distance</h2>
 
-            <label>Antenna Diameter (m)</label>
-            <div class="row">
-                <input type="number" id="fr-d" value="1" oninput="calcFresnel()">
-            </div>
+    <div class="input-card">
+        <label>Frequency</label>
+        <div class="row">
+            <input type="number" id="fr-f" value="5" oninput="calcFresnel()">
+            <select id="fr-f-u" onchange="calcFresnel()">
+                <option value="1e6">MHz</option>
+                <option value="1e9" selected>GHz</option>
+            </select>
         </div>
 
-        <div class="result-box" id="fr-res">Distance: --</div>
+        <label>Antenna Diameter</label>
+        <div class="row">
+            <input type="number" id="fr-d" value="1" oninput="calcFresnel()">
+            <select id="fr-d-u" onchange="calcFresnel()">
+                <option value="1">m</option>
+                <option value="0.01">cm</option>
+                <option value="0.001">mm</option>
+            </select>
+        </div>
     </div>
 
+    <div class="result-box" id="fr-res">Distance: --</div>
+</div>
 
-    <div id="calc-phased" class="screen">
+
+<div id="calc-phased" class="screen">
         <a href="#" class="back-link" onclick="goHome()">&larr; Back</a>
         <button class="info-btn" onclick="showInfo('phased-info')">i</button>
         <h2>Phased Array</h2>
@@ -230,6 +333,88 @@
         </div>
     
 
+</div>
+
+
+    <div id="calc-bw" class="screen">
+        <a href="#" class="back-link" onclick="goHome()">&larr; Back</a>
+        <button class="info-btn" onclick="showInfo('bw-info')">i</button>
+        <h2>Antenna BW & FOV</h2>
+        <div class="input-card">
+            <label>Number of Elements (Az x El)</label>
+            <div class="row">
+                <input type="number" id="bw-n-az" value="8" oninput="calcBW()">
+                <input type="number" id="bw-n-el" value="4" oninput="calcBW()">
+            </div>
+            <label>Element Size (Az x El)</label>
+            <div class="row">
+                <input type="number" id="bw-d-az" value="30" oninput="calcBW()">
+                <input type="number" id="bw-d-el" value="30" oninput="calcBW()">
+                <select id="bw-d-u" onchange="calcBW()">
+                    <option value="1" selected>mm</option>
+                    <option value="10">cm</option>
+                </select>
+            </div>
+            <label>Start Frequency</label>
+            <div class="row">
+                <input type="number" id="bw-f-start" value="10" oninput="calcBW()">
+                <select id="bw-f-start-u" onchange="calcBW()">
+                    <option value="1">Hz</option>
+                    <option value="1e3">kHz</option>
+                    <option value="1e6">MHz</option>
+                    <option value="1e9" selected>GHz</option>
+                </select>
+            </div>
+            <label>Stop Frequency</label>
+            <div class="row">
+                <input type="number" id="bw-f-stop" value="12" oninput="calcBW()">
+                <select id="bw-f-stop-u" onchange="calcBW()">
+                    <option value="1">Hz</option>
+                    <option value="1e3">kHz</option>
+                    <option value="1e6">MHz</option>
+                    <option value="1e9" selected>GHz</option>
+                </select>
+            </div>
+            <label>Frequency Step</label>
+            <div class="row">
+                <input type="number" id="bw-f-step" value="500" oninput="calcBW()">
+                <select id="bw-f-step-u" onchange="calcBW()">
+                    <option value="1e6" selected>MHz</option>
+                    <option value="1e9">GHz</option>
+                </select>
+            </div>
+        </div>
+        <div id="bw-res-table" style="overflow-x:auto; background:white; border-radius:8px; border:1px solid var(--border);"></div>
+    </div>
+
+
+<div id="bw-info" class="overlay">
+    <button class="nav-btn" onclick="hideInfo()">CLOSE</button>
+    <h3>Antenna BW & FOV</h3>
+    <div class="explanation">
+        Calculates the 3dB Beam Width (BW) and the Field of View (FOV).
+        <br><br>
+        <b>Beam Width (BW):</b> Angle of the main beam formed by the entire array.
+        <br>
+        <b>Field of View (FOV):</b> Coverage angle determined by a single element.
+    </div>
+    <div class="formula">
+        BW &approx; 50.7 &middot; &lambda; / (N &middot; d) <br>
+        FOV &approx; 50.7 &middot; &lambda; / d
+    </div>
+    <div class="diagram-box">
+        <svg width="300" height="200" viewBox="0 0 300 200">
+            <!-- FOV Envelope -->
+            <path d="M 150 190 Q 20 80 150 10 Q 280 80 150 190" fill="none" stroke="#e67e22" stroke-width="2" stroke-dasharray="5,5" />
+            <!-- Array Beams -->
+            <path d="M 150 190 Q 135 110 150 40 Q 165 110 150 190" fill="#004a99" opacity="0.7" />
+            <path d="M 150 190 Q 100 130 115 110 Q 125 140 150 190" fill="#004a99" opacity="0.3" />
+            <path d="M 150 190 Q 200 130 185 110 Q 175 140 150 190" fill="#004a99" opacity="0.3" />
+            
+            <text x="10" y="20" font-size="12" fill="#e67e22">Wide FOV (Single Element)</text>
+            <text x="170" y="50" font-size="12" fill="#004a99">Narrow BW (Array Beam)</text>
+        </svg>
+    </div>
 </div>
 
 <!-- OVERLAYS -->
@@ -409,15 +594,90 @@
             options: { animation: false, scales: { y: { min: -40, max: 0 } }, plugins: { legend: { display: false } } }
         });
     }
+
+function calcBW() {
+    const nAz = parseFloat(document.getElementById('bw-n-az').value) || 1;
+    const nEl = parseFloat(document.getElementById('bw-n-el').value) || 1;
+    const dAz = (parseFloat(document.getElementById('bw-d-az').value) || 1) * parseFloat(document.getElementById('bw-d-u').value);
+    const dEl = (parseFloat(document.getElementById('bw-d-el').value) || 1) * parseFloat(document.getElementById('bw-d-u').value);
+    const fStart = (parseFloat(document.getElementById('bw-f-start').value) || 1) * parseFloat(document.getElementById('bw-f-start-u').value);
+    const fStop = (parseFloat(document.getElementById('bw-f-stop').value) || 1) * parseFloat(document.getElementById('bw-f-stop-u').value);
+    let fStep = (parseFloat(document.getElementById('bw-f-step').value) || 1) * parseFloat(document.getElementById('bw-f-step-u').value);
+    
+    if (fStep <= 0) fStep = 1e6;
+    const c = 299792458;
+    
+    let html = '<table style="width:100%; border-collapse: collapse; font-size: 0.8rem; text-align: center;">';
+    html += '<tr style="background:#eee; border-bottom:1px solid #ccc;"><th>Freq (GHz)</th><th>Az BW°</th><th>El BW°</th><th>Az FOV°</th><th>El FOV°</th></tr>';
+    
+    let count = 0;
+    for (let f = fStart; f <= fStop && count < 100; f += fStep) {
+        const lambda = (c / f) * 1000;
+        const bwAz = (50.7 * lambda) / (nAz * dAz);
+        const bwEl = (50.7 * lambda) / (nEl * dEl);
+        const fovAz = (50.7 * lambda) / dAz;
+        const fovEl = (50.7 * lambda) / dEl;
+        
+        html += `<tr style="border-bottom:1px solid #eee;">
+            <td style="padding:5px;">${(f/1e9).toFixed(3)}</td>
+            <td>${bwAz.toFixed(2)}</td>
+            <td>${bwEl.toFixed(2)}</td>
+            <td>${fovAz.toFixed(2)}</td>
+            <td>${fovEl.toFixed(2)}</td>
+        </tr>`;
+        count++;
+        if (f + fStep > fStop && f < fStop) f = fStop - fStep;
+    }
+    html += '</table>';
+    document.getElementById('bw-res-table').innerHTML = html;
+}
+
+// Fixed Theme Switcher
+function setTheme(val) {
+    document.body.className = val + '-theme';
+    localStorage.setItem('rf-theme', val);
+}
+
+// Handle initialization
+window.addEventListener('DOMContentLoaded', () => {
+    const saved = localStorage.getItem('rf-theme') || 'light';
+    setTheme(saved);
+    const sel = document.querySelector('select[onchange^="setTheme"]');
+    if (sel) sel.value = saved;
+});
+
+// Patch openScreen to update table
+const oldOpen = openScreen;
+openScreen = (id) => {
+    oldOpen(id);
+    if (id === 'calc-bw') calcBW();
+}
+
 </script>
 
 <script>
+
 function setTheme(mode){
-    if(mode==='dark'){
-        document.documentElement.style.setProperty('--bg','#1e1e1e');
-        document.documentElement.style.setProperty('--card','#2c2c2c');
-        document.documentElement.style.setProperty('--text','#ffffff');
-    } else if(mode==='grey'){
+
+    document.body.classList.remove(
+        'light-theme',
+        'dark-theme',
+        'grey-theme'
+    );
+
+    if(mode === 'dark'){
+        document.body.classList.add('dark-theme');
+    }
+    else if(mode === 'grey'){
+        document.body.classList.add('grey-theme');
+    }
+    else{
+        document.body.classList.add('light-theme');
+    }
+
+    localStorage.setItem('theme', mode);
+}
+ else if(mode==='grey'){
         document.documentElement.style.setProperty('--bg','#888');
         document.documentElement.style.setProperty('--card','#ccc');
         document.documentElement.style.setProperty('--text','#000');
@@ -426,14 +686,276 @@ function setTheme(mode){
     }
 }
 
+
 function calcFresnel(){
-    const f = document.getElementById('fr-f').value * document.getElementById('fr-f-u').value;
-    const D = document.getElementById('fr-d').value;
+    const f = document.getElementById('fr-f').value *
+              document.getElementById('fr-f-u').value;
+
+    const D = document.getElementById('fr-d').value *
+              document.getElementById('fr-d-u').value;
+
     const c = 3e8;
     const lambda = c / f;
     const R = (2 * D * D) / lambda;
-    document.getElementById('fr-res').innerText = "Far Field Distance: " + R.toFixed(2) + " m";
+
+    document.getElementById('fr-res').innerText =
+        "Far Field Distance: " + R.toFixed(2) + " m";
 }
+
+
+function calcBW() {
+    const nAz = parseFloat(document.getElementById('bw-n-az').value) || 1;
+    const nEl = parseFloat(document.getElementById('bw-n-el').value) || 1;
+    const dAz = (parseFloat(document.getElementById('bw-d-az').value) || 1) * parseFloat(document.getElementById('bw-d-u').value);
+    const dEl = (parseFloat(document.getElementById('bw-d-el').value) || 1) * parseFloat(document.getElementById('bw-d-u').value);
+    const fStart = (parseFloat(document.getElementById('bw-f-start').value) || 1) * parseFloat(document.getElementById('bw-f-start-u').value);
+    const fStop = (parseFloat(document.getElementById('bw-f-stop').value) || 1) * parseFloat(document.getElementById('bw-f-stop-u').value);
+    let fStep = (parseFloat(document.getElementById('bw-f-step').value) || 1) * parseFloat(document.getElementById('bw-f-step-u').value);
+    
+    if (fStep <= 0) fStep = 1e6;
+    const c = 299792458;
+    
+    let html = '<table style="width:100%; border-collapse: collapse; font-size: 0.8rem; text-align: center;">';
+    html += '<tr style="background:#eee; border-bottom:1px solid #ccc;"><th>Freq (GHz)</th><th>Az BW°</th><th>El BW°</th><th>Az FOV°</th><th>El FOV°</th></tr>';
+    
+    let count = 0;
+    for (let f = fStart; f <= fStop && count < 100; f += fStep) {
+        const lambda = (c / f) * 1000;
+        const bwAz = (50.7 * lambda) / (nAz * dAz);
+        const bwEl = (50.7 * lambda) / (nEl * dEl);
+        const fovAz = (50.7 * lambda) / dAz;
+        const fovEl = (50.7 * lambda) / dEl;
+        
+        html += `<tr style="border-bottom:1px solid #eee;">
+            <td style="padding:5px;">${(f/1e9).toFixed(3)}</td>
+            <td>${bwAz.toFixed(2)}</td>
+            <td>${bwEl.toFixed(2)}</td>
+            <td>${fovAz.toFixed(2)}</td>
+            <td>${fovEl.toFixed(2)}</td>
+        </tr>`;
+        count++;
+        if (f + fStep > fStop && f < fStop) f = fStop - fStep;
+    }
+    html += '</table>';
+    document.getElementById('bw-res-table').innerHTML = html;
+}
+
+// Fixed Theme Switcher
+function setTheme(val) {
+    document.body.className = val + '-theme';
+    localStorage.setItem('rf-theme', val);
+}
+
+// Handle initialization
+window.addEventListener('DOMContentLoaded', () => {
+    const saved = localStorage.getItem('rf-theme') || 'light';
+    setTheme(saved);
+    const sel = document.querySelector('select[onchange^="setTheme"]');
+    if (sel) sel.value = saved;
+});
+
+// Patch openScreen to update table
+const oldOpen = openScreen;
+openScreen = (id) => {
+    oldOpen(id);
+    if (id === 'calc-bw') calcBW();
+}
+
+</script>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    history.pushState(null, null, location.href);
+
+    window.onpopstate = function () {
+        if (typeof goHome === 'function') {
+            goHome();
+        }
+        history.pushState(null, null, location.href);
+    };
+});
+
+function calcBW() {
+    const nAz = parseFloat(document.getElementById('bw-n-az').value) || 1;
+    const nEl = parseFloat(document.getElementById('bw-n-el').value) || 1;
+    const dAz = (parseFloat(document.getElementById('bw-d-az').value) || 1) * parseFloat(document.getElementById('bw-d-u').value);
+    const dEl = (parseFloat(document.getElementById('bw-d-el').value) || 1) * parseFloat(document.getElementById('bw-d-u').value);
+    const fStart = (parseFloat(document.getElementById('bw-f-start').value) || 1) * parseFloat(document.getElementById('bw-f-start-u').value);
+    const fStop = (parseFloat(document.getElementById('bw-f-stop').value) || 1) * parseFloat(document.getElementById('bw-f-stop-u').value);
+    let fStep = (parseFloat(document.getElementById('bw-f-step').value) || 1) * parseFloat(document.getElementById('bw-f-step-u').value);
+    
+    if (fStep <= 0) fStep = 1e6;
+    const c = 299792458;
+    
+    let html = '<table style="width:100%; border-collapse: collapse; font-size: 0.8rem; text-align: center;">';
+    html += '<tr style="background:#eee; border-bottom:1px solid #ccc;"><th>Freq (GHz)</th><th>Az BW°</th><th>El BW°</th><th>Az FOV°</th><th>El FOV°</th></tr>';
+    
+    let count = 0;
+    for (let f = fStart; f <= fStop && count < 100; f += fStep) {
+        const lambda = (c / f) * 1000;
+        const bwAz = (50.7 * lambda) / (nAz * dAz);
+        const bwEl = (50.7 * lambda) / (nEl * dEl);
+        const fovAz = (50.7 * lambda) / dAz;
+        const fovEl = (50.7 * lambda) / dEl;
+        
+        html += `<tr style="border-bottom:1px solid #eee;">
+            <td style="padding:5px;">${(f/1e9).toFixed(3)}</td>
+            <td>${bwAz.toFixed(2)}</td>
+            <td>${bwEl.toFixed(2)}</td>
+            <td>${fovAz.toFixed(2)}</td>
+            <td>${fovEl.toFixed(2)}</td>
+        </tr>`;
+        count++;
+        if (f + fStep > fStop && f < fStop) f = fStop - fStep;
+    }
+    html += '</table>';
+    document.getElementById('bw-res-table').innerHTML = html;
+}
+
+// Fixed Theme Switcher
+function setTheme(val) {
+    document.body.className = val + '-theme';
+    localStorage.setItem('rf-theme', val);
+}
+
+// Handle initialization
+window.addEventListener('DOMContentLoaded', () => {
+    const saved = localStorage.getItem('rf-theme') || 'light';
+    setTheme(saved);
+    const sel = document.querySelector('select[onchange^="setTheme"]');
+    if (sel) sel.value = saved;
+});
+
+// Patch openScreen to update table
+const oldOpen = openScreen;
+openScreen = (id) => {
+    oldOpen(id);
+    if (id === 'calc-bw') calcBW();
+}
+
+</script>
+
+
+<div id="fresnel-info" class="overlay">
+    <button class="nav-btn" onclick="hideInfo()">CLOSE</button>
+
+    <h3>Far Field (Fraunhofer Distance)</h3>
+
+    <div class="explanation">
+        The far-field region is where electromagnetic waves become nearly planar
+        and antenna radiation characteristics no longer depend on distance.
+    </div>
+
+    <div class="formula">
+        R = 2D² / λ
+    </div>
+
+    <div class="explanation">
+        D = antenna diameter<br>
+        λ = wavelength<br>
+        λ = c / f
+    </div>
+
+    <div class="diagram-box">
+        <svg width="300" height="140" viewBox="0 0 300 140">
+            <circle cx="40" cy="70" r="18" fill="#004a99"/>
+
+            <line x1="58" y1="70"
+                  x2="250" y2="70"
+                  stroke="#2c3e50"
+                  stroke-width="2"
+                  stroke-dasharray="5,5"/>
+
+            <rect x="250" y="45"
+                  width="18"
+                  height="50"
+                  fill="#004a99"/>
+
+            <path d="M58 48 Q150 15 250 48"
+                  fill="none"
+                  stroke="#e67e22"
+                  stroke-width="2"/>
+
+            <path d="M58 92 Q150 125 250 92"
+                  fill="none"
+                  stroke="#e67e22"
+                  stroke-width="2"/>
+        </svg>
+    </div>
+</div>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    setTheme(savedTheme);
+
+    const selector = document.querySelector('select[onchange="setTheme(this.value)"]');
+    if(selector){
+        selector.value = savedTheme;
+    }
+});
+
+function calcBW() {
+    const nAz = parseFloat(document.getElementById('bw-n-az').value) || 1;
+    const nEl = parseFloat(document.getElementById('bw-n-el').value) || 1;
+    const dAz = (parseFloat(document.getElementById('bw-d-az').value) || 1) * parseFloat(document.getElementById('bw-d-u').value);
+    const dEl = (parseFloat(document.getElementById('bw-d-el').value) || 1) * parseFloat(document.getElementById('bw-d-u').value);
+    const fStart = (parseFloat(document.getElementById('bw-f-start').value) || 1) * parseFloat(document.getElementById('bw-f-start-u').value);
+    const fStop = (parseFloat(document.getElementById('bw-f-stop').value) || 1) * parseFloat(document.getElementById('bw-f-stop-u').value);
+    let fStep = (parseFloat(document.getElementById('bw-f-step').value) || 1) * parseFloat(document.getElementById('bw-f-step-u').value);
+    
+    if (fStep <= 0) fStep = 1e6;
+    const c = 299792458;
+    
+    let html = '<table style="width:100%; border-collapse: collapse; font-size: 0.8rem; text-align: center;">';
+    html += '<tr style="background:#eee; border-bottom:1px solid #ccc;"><th>Freq (GHz)</th><th>Az BW°</th><th>El BW°</th><th>Az FOV°</th><th>El FOV°</th></tr>';
+    
+    let count = 0;
+    for (let f = fStart; f <= fStop && count < 100; f += fStep) {
+        const lambda = (c / f) * 1000;
+        const bwAz = (50.7 * lambda) / (nAz * dAz);
+        const bwEl = (50.7 * lambda) / (nEl * dEl);
+        const fovAz = (50.7 * lambda) / dAz;
+        const fovEl = (50.7 * lambda) / dEl;
+        
+        html += `<tr style="border-bottom:1px solid #eee;">
+            <td style="padding:5px;">${(f/1e9).toFixed(3)}</td>
+            <td>${bwAz.toFixed(2)}</td>
+            <td>${bwEl.toFixed(2)}</td>
+            <td>${fovAz.toFixed(2)}</td>
+            <td>${fovEl.toFixed(2)}</td>
+        </tr>`;
+        count++;
+        if (f + fStep > fStop && f < fStop) f = fStop - fStep;
+    }
+    html += '</table>';
+    document.getElementById('bw-res-table').innerHTML = html;
+}
+
+// Fixed Theme Switcher
+function setTheme(val) {
+    document.body.className = val + '-theme';
+    localStorage.setItem('rf-theme', val);
+}
+
+// Handle initialization
+window.addEventListener('DOMContentLoaded', () => {
+    const saved = localStorage.getItem('rf-theme') || 'light';
+    setTheme(saved);
+    const sel = document.querySelector('select[onchange^="setTheme"]');
+    if (sel) sel.value = saved;
+});
+
+// Patch openScreen to update table
+const oldOpen = openScreen;
+openScreen = (id) => {
+    oldOpen(id);
+    if (id === 'calc-bw') calcBW();
+}
+
 </script>
 
 </body>
