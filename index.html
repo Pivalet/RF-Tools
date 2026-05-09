@@ -13,13 +13,10 @@ function calcBW() {
     const fStart = (parseFloat(document.getElementById('bw-f-start').value) || 1) * parseFloat(document.getElementById('bw-f-start-u').value);
     const fStop = (parseFloat(document.getElementById('bw-f-stop').value) || 1) * parseFloat(document.getElementById('bw-f-stop-u').value);
     let fStep = (parseFloat(document.getElementById('bw-f-step').value) || 1) * parseFloat(document.getElementById('bw-f-step-u').value);
-    
     if (fStep <= 0) fStep = 1e6;
     const c = 299792458;
-    
     let html = '<table style="width:100%; border-collapse: collapse; font-size: 0.8rem; text-align: center;">';
     html += '<tr style="background:#eee; border-bottom:1px solid #ccc;"><th>Freq (GHz)</th><th>Az BW°</th><th>El BW°</th><th>Az FOV°</th><th>El FOV°</th></tr>';
-    
     let count = 0;
     for (let f = fStart; f <= fStop && count < 100; f += fStep) {
         const lambda = (c / f) * 1000;
@@ -27,14 +24,7 @@ function calcBW() {
         const bwEl = (50.7 * lambda) / (nEl * dEl);
         const fovAz = (50.7 * lambda) / dAz;
         const fovEl = (50.7 * lambda) / dEl;
-        
-        html += `<tr style="border-bottom:1px solid #eee;">
-            <td style="padding:5px;">${(f/1e9).toFixed(3)}</td>
-            <td>${bwAz.toFixed(2)}</td>
-            <td>${bwEl.toFixed(2)}</td>
-            <td>${fovAz.toFixed(2)}</td>
-            <td>${fovEl.toFixed(2)}</td>
-        </tr>`;
+        html += `<tr style="border-bottom:1px solid #eee;"><td style="padding:5px;">${(f/1e9).toFixed(3)}</td><td>${bwAz.toFixed(2)}</td><td>${bwEl.toFixed(2)}</td><td>${fovAz.toFixed(2)}</td><td>${fovEl.toFixed(2)}</td></tr>`;
         count++;
         if (f + fStep > fStop && f < fStop) f = fStop - fStep;
     }
@@ -42,13 +32,30 @@ function calcBW() {
     document.getElementById('bw-res-table').innerHTML = html;
 }
 
-// Fixed Theme Switcher
+function calcP1() {
+    const f = (parseFloat(document.getElementById('p1-f').value) || 0) * parseFloat(document.getElementById('p1-f-u').value);
+    const t = (parseFloat(document.getElementById('p1-t').value) || 0) * parseFloat(document.getElementById('p1-t-u').value);
+    const phase = 360 * f * t;
+    document.getElementById('p1-res').innerText = `Phase: ${phase.toFixed(2)}° (${(phase % 360).toFixed(2)}° mod 360)`;
+}
+
+function calcP2() {
+    const f = (parseFloat(document.getElementById('p2-f').value) || 0) * parseFloat(document.getElementById('p2-f-u').value);
+    const p = parseFloat(document.getElementById('p2-p').value) || 0;
+    if (f === 0) { document.getElementById('p2-res').innerText = "Time: --"; return; }
+    const t = p / (360 * f);
+    let resText = "";
+    if (t < 1e-9) resText = (t * 1e12).toFixed(3) + " ps";
+    else if (t < 1e-6) resText = (t * 1e9).toFixed(3) + " ns";
+    else resText = (t * 1e6).toFixed(3) + " µs";
+    document.getElementById('p2-res').innerText = "Time: " + resText;
+}
+
 function setTheme(val) {
     document.body.className = val + '-theme';
     localStorage.setItem('rf-theme', val);
 }
 
-// Handle initialization
 window.addEventListener('DOMContentLoaded', () => {
     const saved = localStorage.getItem('rf-theme') || 'light';
     setTheme(saved);
@@ -56,11 +63,11 @@ window.addEventListener('DOMContentLoaded', () => {
     if (sel) sel.value = saved;
 });
 
-// Patch openScreen to update table
 const oldOpen = openScreen;
 openScreen = (id) => {
     oldOpen(id);
     if (id === 'calc-bw') calcBW();
+    if (id === 'calc-phase') { calcP1(); calcP2(); }
 }
 
 </script>
@@ -189,6 +196,7 @@ body.grey-theme .overlay {
         <button class="nav-btn" onclick="openScreen('calc-phased')">Phased Array Parameters</button>
         <button class="nav-btn" onclick="openScreen('calc-fresnel')">Far Field / Fresnel Distance</button>
         <button class="nav-btn" onclick="openScreen('calc-bw')">Antenna BW & FOV</button>
+        <button class="nav-btn" onclick="openScreen('calc-phase')">Phase / Time Converter</button>
         <div class="footer-tag">created by Pivalet &copy; 2026</div>
 </div>
 
@@ -387,32 +395,90 @@ body.grey-theme .overlay {
         <div id="bw-res-table" style="overflow-x:auto; background:white; border-radius:8px; border:1px solid var(--border);"></div>
     </div>
 
+    <div id="calc-phase" class="screen">
+        <a href="#" class="back-link" onclick="goHome()">&larr; Back</a>
+        <button class="info-btn" onclick="showInfo('phase-info')">i</button>
+        <h2>Phase / Time Converter</h2>
+        
+        <div class="input-card">
+            <h3>1. Calculate Phase from Time</h3>
+            <label>Frequency</label>
+            <div class="row">
+                <input type="number" id="p1-f" value="10" oninput="calcP1()">
+                <select id="p1-f-u" onchange="calcP1()">
+                    <option value="1">Hz</option>
+                    <option value="1e3">kHz</option>
+                    <option value="1e6">MHz</option>
+                    <option value="1e9" selected>GHz</option>
+                </select>
+            </div>
+            <label>Time Delay</label>
+            <div class="row">
+                <input type="number" id="p1-t" value="0.025" oninput="calcP1()">
+                <select id="p1-t-u" onchange="calcP1()">
+                    <option value="1e-12">ps</option>
+                    <option value="1e-9" selected>ns</option>
+                    <option value="1e-6">µs</option>
+                </select>
+            </div>
+            <div class="result" id="p1-res">Phase: --°</div>
+        </div>
+
+        <div class="input-card" style="margin-top:20px;">
+            <h3>2. Calculate Time from Phase</h3>
+            <label>Frequency</label>
+            <div class="row">
+                <input type="number" id="p2-f" value="10" oninput="calcP2()">
+                <select id="p2-f-u" onchange="calcP2()">
+                    <option value="1">Hz</option>
+                    <option value="1e3">kHz</option>
+                    <option value="1e6">MHz</option>
+                    <option value="1e9" selected>GHz</option>
+                </select>
+            </div>
+            <label>Phase Shift (degrees)</label>
+            <div class="row">
+                <input type="number" id="p2-p" value="90" oninput="calcP2()">
+            </div>
+            <div class="result" id="p2-res">Time: -- ns</div>
+        </div>
+    </div>
 
 <div id="bw-info" class="overlay">
     <button class="nav-btn" onclick="hideInfo()">CLOSE</button>
     <h3>Antenna BW & FOV</h3>
     <div class="explanation">
         Calculates the 3dB Beam Width (BW) and the Field of View (FOV).
-        <br><br>
-        <b>Beam Width (BW):</b> Angle of the main beam formed by the entire array.
-        <br>
-        <b>Field of View (FOV):</b> Coverage angle determined by a single element.
     </div>
     <div class="formula">
         BW &approx; 50.7 &middot; &lambda; / (N &middot; d) <br>
         FOV &approx; 50.7 &middot; &lambda; / d
     </div>
     <div class="diagram-box">
-        <svg width="300" height="200" viewBox="0 0 300 200">
-            <!-- FOV Envelope -->
-            <path d="M 150 190 Q 20 80 150 10 Q 280 80 150 190" fill="none" stroke="#e67e22" stroke-width="2" stroke-dasharray="5,5" />
-            <!-- Array Beams -->
-            <path d="M 150 190 Q 135 110 150 40 Q 165 110 150 190" fill="#004a99" opacity="0.7" />
-            <path d="M 150 190 Q 100 130 115 110 Q 125 140 150 190" fill="#004a99" opacity="0.3" />
-            <path d="M 150 190 Q 200 130 185 110 Q 175 140 150 190" fill="#004a99" opacity="0.3" />
-            
-            <text x="10" y="20" font-size="12" fill="#e67e22">Wide FOV (Single Element)</text>
-            <text x="170" y="50" font-size="12" fill="#004a99">Narrow BW (Array Beam)</text>
+        <svg width="300" height="160" viewBox="0 0 300 160">
+            <path d="M 150 150 Q 20 60 150 10 Q 280 60 150 150" fill="none" stroke="#e67e22" stroke-width="2" stroke-dasharray="5,5" />
+            <path d="M 150 150 Q 135 90 150 30 Q 165 90 150 150" fill="#004a99" opacity="0.7" />
+        </svg>
+    </div>
+</div>
+
+<div id="phase-info" class="overlay">
+    <button class="nav-btn" onclick="hideInfo()">CLOSE</button>
+    <h3>Phase & Time Info</h3>
+    <div class="explanation">
+        Relationship between phase shift and time delay at a specific frequency.
+    </div>
+    <div class="formula">
+        &Delta;&phi; (deg) = 360 &middot; f &middot; t <br>
+        t (sec) = &Delta;&phi; / (360 &middot; f)
+    </div>
+    <div class="diagram-box">
+        <svg width="300" height="150" viewBox="0 0 300 150">
+            <!-- Sine Wave 1 -->
+            <path d="M 0 75 Q 37.5 25 75 75 Q 112.5 125 150 75 Q 187.5 25 225 75 Q 262.5 125 300 75" fill="none" stroke="#ccc" stroke-width="2" />
+            <!-- Shifted Sine Wave -->
+            <path d="M 30 75 Q 67.5 25 105 75 Q 142.5 125 180 75 Q 217.5 25 255 75 Q 292.5 125 300 115" fill="none" stroke="#004a99" stroke-width="2" />
+            <text x="5" y="20" font-size="12" fill="#004a99">Blue wave is shifted in time/phase</text>
         </svg>
     </div>
 </div>
@@ -603,13 +669,10 @@ function calcBW() {
     const fStart = (parseFloat(document.getElementById('bw-f-start').value) || 1) * parseFloat(document.getElementById('bw-f-start-u').value);
     const fStop = (parseFloat(document.getElementById('bw-f-stop').value) || 1) * parseFloat(document.getElementById('bw-f-stop-u').value);
     let fStep = (parseFloat(document.getElementById('bw-f-step').value) || 1) * parseFloat(document.getElementById('bw-f-step-u').value);
-    
     if (fStep <= 0) fStep = 1e6;
     const c = 299792458;
-    
     let html = '<table style="width:100%; border-collapse: collapse; font-size: 0.8rem; text-align: center;">';
     html += '<tr style="background:#eee; border-bottom:1px solid #ccc;"><th>Freq (GHz)</th><th>Az BW°</th><th>El BW°</th><th>Az FOV°</th><th>El FOV°</th></tr>';
-    
     let count = 0;
     for (let f = fStart; f <= fStop && count < 100; f += fStep) {
         const lambda = (c / f) * 1000;
@@ -617,14 +680,7 @@ function calcBW() {
         const bwEl = (50.7 * lambda) / (nEl * dEl);
         const fovAz = (50.7 * lambda) / dAz;
         const fovEl = (50.7 * lambda) / dEl;
-        
-        html += `<tr style="border-bottom:1px solid #eee;">
-            <td style="padding:5px;">${(f/1e9).toFixed(3)}</td>
-            <td>${bwAz.toFixed(2)}</td>
-            <td>${bwEl.toFixed(2)}</td>
-            <td>${fovAz.toFixed(2)}</td>
-            <td>${fovEl.toFixed(2)}</td>
-        </tr>`;
+        html += `<tr style="border-bottom:1px solid #eee;"><td style="padding:5px;">${(f/1e9).toFixed(3)}</td><td>${bwAz.toFixed(2)}</td><td>${bwEl.toFixed(2)}</td><td>${fovAz.toFixed(2)}</td><td>${fovEl.toFixed(2)}</td></tr>`;
         count++;
         if (f + fStep > fStop && f < fStop) f = fStop - fStep;
     }
@@ -632,13 +688,30 @@ function calcBW() {
     document.getElementById('bw-res-table').innerHTML = html;
 }
 
-// Fixed Theme Switcher
+function calcP1() {
+    const f = (parseFloat(document.getElementById('p1-f').value) || 0) * parseFloat(document.getElementById('p1-f-u').value);
+    const t = (parseFloat(document.getElementById('p1-t').value) || 0) * parseFloat(document.getElementById('p1-t-u').value);
+    const phase = 360 * f * t;
+    document.getElementById('p1-res').innerText = `Phase: ${phase.toFixed(2)}° (${(phase % 360).toFixed(2)}° mod 360)`;
+}
+
+function calcP2() {
+    const f = (parseFloat(document.getElementById('p2-f').value) || 0) * parseFloat(document.getElementById('p2-f-u').value);
+    const p = parseFloat(document.getElementById('p2-p').value) || 0;
+    if (f === 0) { document.getElementById('p2-res').innerText = "Time: --"; return; }
+    const t = p / (360 * f);
+    let resText = "";
+    if (t < 1e-9) resText = (t * 1e12).toFixed(3) + " ps";
+    else if (t < 1e-6) resText = (t * 1e9).toFixed(3) + " ns";
+    else resText = (t * 1e6).toFixed(3) + " µs";
+    document.getElementById('p2-res').innerText = "Time: " + resText;
+}
+
 function setTheme(val) {
     document.body.className = val + '-theme';
     localStorage.setItem('rf-theme', val);
 }
 
-// Handle initialization
 window.addEventListener('DOMContentLoaded', () => {
     const saved = localStorage.getItem('rf-theme') || 'light';
     setTheme(saved);
@@ -646,11 +719,11 @@ window.addEventListener('DOMContentLoaded', () => {
     if (sel) sel.value = saved;
 });
 
-// Patch openScreen to update table
 const oldOpen = openScreen;
 openScreen = (id) => {
     oldOpen(id);
     if (id === 'calc-bw') calcBW();
+    if (id === 'calc-phase') { calcP1(); calcP2(); }
 }
 
 </script>
@@ -711,13 +784,10 @@ function calcBW() {
     const fStart = (parseFloat(document.getElementById('bw-f-start').value) || 1) * parseFloat(document.getElementById('bw-f-start-u').value);
     const fStop = (parseFloat(document.getElementById('bw-f-stop').value) || 1) * parseFloat(document.getElementById('bw-f-stop-u').value);
     let fStep = (parseFloat(document.getElementById('bw-f-step').value) || 1) * parseFloat(document.getElementById('bw-f-step-u').value);
-    
     if (fStep <= 0) fStep = 1e6;
     const c = 299792458;
-    
     let html = '<table style="width:100%; border-collapse: collapse; font-size: 0.8rem; text-align: center;">';
     html += '<tr style="background:#eee; border-bottom:1px solid #ccc;"><th>Freq (GHz)</th><th>Az BW°</th><th>El BW°</th><th>Az FOV°</th><th>El FOV°</th></tr>';
-    
     let count = 0;
     for (let f = fStart; f <= fStop && count < 100; f += fStep) {
         const lambda = (c / f) * 1000;
@@ -725,14 +795,7 @@ function calcBW() {
         const bwEl = (50.7 * lambda) / (nEl * dEl);
         const fovAz = (50.7 * lambda) / dAz;
         const fovEl = (50.7 * lambda) / dEl;
-        
-        html += `<tr style="border-bottom:1px solid #eee;">
-            <td style="padding:5px;">${(f/1e9).toFixed(3)}</td>
-            <td>${bwAz.toFixed(2)}</td>
-            <td>${bwEl.toFixed(2)}</td>
-            <td>${fovAz.toFixed(2)}</td>
-            <td>${fovEl.toFixed(2)}</td>
-        </tr>`;
+        html += `<tr style="border-bottom:1px solid #eee;"><td style="padding:5px;">${(f/1e9).toFixed(3)}</td><td>${bwAz.toFixed(2)}</td><td>${bwEl.toFixed(2)}</td><td>${fovAz.toFixed(2)}</td><td>${fovEl.toFixed(2)}</td></tr>`;
         count++;
         if (f + fStep > fStop && f < fStop) f = fStop - fStep;
     }
@@ -740,13 +803,30 @@ function calcBW() {
     document.getElementById('bw-res-table').innerHTML = html;
 }
 
-// Fixed Theme Switcher
+function calcP1() {
+    const f = (parseFloat(document.getElementById('p1-f').value) || 0) * parseFloat(document.getElementById('p1-f-u').value);
+    const t = (parseFloat(document.getElementById('p1-t').value) || 0) * parseFloat(document.getElementById('p1-t-u').value);
+    const phase = 360 * f * t;
+    document.getElementById('p1-res').innerText = `Phase: ${phase.toFixed(2)}° (${(phase % 360).toFixed(2)}° mod 360)`;
+}
+
+function calcP2() {
+    const f = (parseFloat(document.getElementById('p2-f').value) || 0) * parseFloat(document.getElementById('p2-f-u').value);
+    const p = parseFloat(document.getElementById('p2-p').value) || 0;
+    if (f === 0) { document.getElementById('p2-res').innerText = "Time: --"; return; }
+    const t = p / (360 * f);
+    let resText = "";
+    if (t < 1e-9) resText = (t * 1e12).toFixed(3) + " ps";
+    else if (t < 1e-6) resText = (t * 1e9).toFixed(3) + " ns";
+    else resText = (t * 1e6).toFixed(3) + " µs";
+    document.getElementById('p2-res').innerText = "Time: " + resText;
+}
+
 function setTheme(val) {
     document.body.className = val + '-theme';
     localStorage.setItem('rf-theme', val);
 }
 
-// Handle initialization
 window.addEventListener('DOMContentLoaded', () => {
     const saved = localStorage.getItem('rf-theme') || 'light';
     setTheme(saved);
@@ -754,11 +834,11 @@ window.addEventListener('DOMContentLoaded', () => {
     if (sel) sel.value = saved;
 });
 
-// Patch openScreen to update table
 const oldOpen = openScreen;
 openScreen = (id) => {
     oldOpen(id);
     if (id === 'calc-bw') calcBW();
+    if (id === 'calc-phase') { calcP1(); calcP2(); }
 }
 
 </script>
@@ -784,13 +864,10 @@ function calcBW() {
     const fStart = (parseFloat(document.getElementById('bw-f-start').value) || 1) * parseFloat(document.getElementById('bw-f-start-u').value);
     const fStop = (parseFloat(document.getElementById('bw-f-stop').value) || 1) * parseFloat(document.getElementById('bw-f-stop-u').value);
     let fStep = (parseFloat(document.getElementById('bw-f-step').value) || 1) * parseFloat(document.getElementById('bw-f-step-u').value);
-    
     if (fStep <= 0) fStep = 1e6;
     const c = 299792458;
-    
     let html = '<table style="width:100%; border-collapse: collapse; font-size: 0.8rem; text-align: center;">';
     html += '<tr style="background:#eee; border-bottom:1px solid #ccc;"><th>Freq (GHz)</th><th>Az BW°</th><th>El BW°</th><th>Az FOV°</th><th>El FOV°</th></tr>';
-    
     let count = 0;
     for (let f = fStart; f <= fStop && count < 100; f += fStep) {
         const lambda = (c / f) * 1000;
@@ -798,14 +875,7 @@ function calcBW() {
         const bwEl = (50.7 * lambda) / (nEl * dEl);
         const fovAz = (50.7 * lambda) / dAz;
         const fovEl = (50.7 * lambda) / dEl;
-        
-        html += `<tr style="border-bottom:1px solid #eee;">
-            <td style="padding:5px;">${(f/1e9).toFixed(3)}</td>
-            <td>${bwAz.toFixed(2)}</td>
-            <td>${bwEl.toFixed(2)}</td>
-            <td>${fovAz.toFixed(2)}</td>
-            <td>${fovEl.toFixed(2)}</td>
-        </tr>`;
+        html += `<tr style="border-bottom:1px solid #eee;"><td style="padding:5px;">${(f/1e9).toFixed(3)}</td><td>${bwAz.toFixed(2)}</td><td>${bwEl.toFixed(2)}</td><td>${fovAz.toFixed(2)}</td><td>${fovEl.toFixed(2)}</td></tr>`;
         count++;
         if (f + fStep > fStop && f < fStop) f = fStop - fStep;
     }
@@ -813,13 +883,30 @@ function calcBW() {
     document.getElementById('bw-res-table').innerHTML = html;
 }
 
-// Fixed Theme Switcher
+function calcP1() {
+    const f = (parseFloat(document.getElementById('p1-f').value) || 0) * parseFloat(document.getElementById('p1-f-u').value);
+    const t = (parseFloat(document.getElementById('p1-t').value) || 0) * parseFloat(document.getElementById('p1-t-u').value);
+    const phase = 360 * f * t;
+    document.getElementById('p1-res').innerText = `Phase: ${phase.toFixed(2)}° (${(phase % 360).toFixed(2)}° mod 360)`;
+}
+
+function calcP2() {
+    const f = (parseFloat(document.getElementById('p2-f').value) || 0) * parseFloat(document.getElementById('p2-f-u').value);
+    const p = parseFloat(document.getElementById('p2-p').value) || 0;
+    if (f === 0) { document.getElementById('p2-res').innerText = "Time: --"; return; }
+    const t = p / (360 * f);
+    let resText = "";
+    if (t < 1e-9) resText = (t * 1e12).toFixed(3) + " ps";
+    else if (t < 1e-6) resText = (t * 1e9).toFixed(3) + " ns";
+    else resText = (t * 1e6).toFixed(3) + " µs";
+    document.getElementById('p2-res').innerText = "Time: " + resText;
+}
+
 function setTheme(val) {
     document.body.className = val + '-theme';
     localStorage.setItem('rf-theme', val);
 }
 
-// Handle initialization
 window.addEventListener('DOMContentLoaded', () => {
     const saved = localStorage.getItem('rf-theme') || 'light';
     setTheme(saved);
@@ -827,11 +914,11 @@ window.addEventListener('DOMContentLoaded', () => {
     if (sel) sel.value = saved;
 });
 
-// Patch openScreen to update table
 const oldOpen = openScreen;
 openScreen = (id) => {
     oldOpen(id);
     if (id === 'calc-bw') calcBW();
+    if (id === 'calc-phase') { calcP1(); calcP2(); }
 }
 
 </script>
@@ -906,13 +993,10 @@ function calcBW() {
     const fStart = (parseFloat(document.getElementById('bw-f-start').value) || 1) * parseFloat(document.getElementById('bw-f-start-u').value);
     const fStop = (parseFloat(document.getElementById('bw-f-stop').value) || 1) * parseFloat(document.getElementById('bw-f-stop-u').value);
     let fStep = (parseFloat(document.getElementById('bw-f-step').value) || 1) * parseFloat(document.getElementById('bw-f-step-u').value);
-    
     if (fStep <= 0) fStep = 1e6;
     const c = 299792458;
-    
     let html = '<table style="width:100%; border-collapse: collapse; font-size: 0.8rem; text-align: center;">';
     html += '<tr style="background:#eee; border-bottom:1px solid #ccc;"><th>Freq (GHz)</th><th>Az BW°</th><th>El BW°</th><th>Az FOV°</th><th>El FOV°</th></tr>';
-    
     let count = 0;
     for (let f = fStart; f <= fStop && count < 100; f += fStep) {
         const lambda = (c / f) * 1000;
@@ -920,14 +1004,7 @@ function calcBW() {
         const bwEl = (50.7 * lambda) / (nEl * dEl);
         const fovAz = (50.7 * lambda) / dAz;
         const fovEl = (50.7 * lambda) / dEl;
-        
-        html += `<tr style="border-bottom:1px solid #eee;">
-            <td style="padding:5px;">${(f/1e9).toFixed(3)}</td>
-            <td>${bwAz.toFixed(2)}</td>
-            <td>${bwEl.toFixed(2)}</td>
-            <td>${fovAz.toFixed(2)}</td>
-            <td>${fovEl.toFixed(2)}</td>
-        </tr>`;
+        html += `<tr style="border-bottom:1px solid #eee;"><td style="padding:5px;">${(f/1e9).toFixed(3)}</td><td>${bwAz.toFixed(2)}</td><td>${bwEl.toFixed(2)}</td><td>${fovAz.toFixed(2)}</td><td>${fovEl.toFixed(2)}</td></tr>`;
         count++;
         if (f + fStep > fStop && f < fStop) f = fStop - fStep;
     }
@@ -935,13 +1012,30 @@ function calcBW() {
     document.getElementById('bw-res-table').innerHTML = html;
 }
 
-// Fixed Theme Switcher
+function calcP1() {
+    const f = (parseFloat(document.getElementById('p1-f').value) || 0) * parseFloat(document.getElementById('p1-f-u').value);
+    const t = (parseFloat(document.getElementById('p1-t').value) || 0) * parseFloat(document.getElementById('p1-t-u').value);
+    const phase = 360 * f * t;
+    document.getElementById('p1-res').innerText = `Phase: ${phase.toFixed(2)}° (${(phase % 360).toFixed(2)}° mod 360)`;
+}
+
+function calcP2() {
+    const f = (parseFloat(document.getElementById('p2-f').value) || 0) * parseFloat(document.getElementById('p2-f-u').value);
+    const p = parseFloat(document.getElementById('p2-p').value) || 0;
+    if (f === 0) { document.getElementById('p2-res').innerText = "Time: --"; return; }
+    const t = p / (360 * f);
+    let resText = "";
+    if (t < 1e-9) resText = (t * 1e12).toFixed(3) + " ps";
+    else if (t < 1e-6) resText = (t * 1e9).toFixed(3) + " ns";
+    else resText = (t * 1e6).toFixed(3) + " µs";
+    document.getElementById('p2-res').innerText = "Time: " + resText;
+}
+
 function setTheme(val) {
     document.body.className = val + '-theme';
     localStorage.setItem('rf-theme', val);
 }
 
-// Handle initialization
 window.addEventListener('DOMContentLoaded', () => {
     const saved = localStorage.getItem('rf-theme') || 'light';
     setTheme(saved);
@@ -949,11 +1043,11 @@ window.addEventListener('DOMContentLoaded', () => {
     if (sel) sel.value = saved;
 });
 
-// Patch openScreen to update table
 const oldOpen = openScreen;
 openScreen = (id) => {
     oldOpen(id);
     if (id === 'calc-bw') calcBW();
+    if (id === 'calc-phase') { calcP1(); calcP2(); }
 }
 
 </script>
