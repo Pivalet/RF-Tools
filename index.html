@@ -42,7 +42,7 @@ function calcP1() {
 function calcP2() {
     const f = (parseFloat(document.getElementById('p2-f').value) || 0) * parseFloat(document.getElementById('p2-f-u').value);
     const p = parseFloat(document.getElementById('p2-p').value) || 0;
-    if (f === 0) { document.getElementById('p2-res').innerText = "Time: --"; return; }
+    if (f === 0) return;
     const t = p / (360 * f);
     let resText = "";
     if (t < 1e-9) resText = (t * 1e12).toFixed(3) + " ps";
@@ -51,21 +51,56 @@ function calcP2() {
     document.getElementById('p2-res').innerText = "Time: " + resText;
 }
 
-function setTheme(val) {
-    document.body.className = val + '-theme';
-    localStorage.setItem('rf-theme', val);
+
+function runCorr() {
+    const fElems = document.querySelectorAll('.corr-f');
+    const uElems = document.querySelectorAll('.corr-f-u');
+    const pElems = document.querySelectorAll('.corr-p');
+    const pathEst = parseFloat(document.getElementById('corr-path').value) || 0;
+    const fTarget = parseFloat(document.getElementById('corr-f-target').value) * parseFloat(document.getElementById('corr-f-target-u').value);
+    
+    let datasets = [];
+    for(let i=0; i<fElems.length; i++) {
+        let f = parseFloat(fElems[i].value) * parseFloat(uElems[i].value);
+        let p = parseFloat(pElems[i].value);
+        if(!isNaN(f) && !isNaN(p)) datasets.push({f, p});
+    }
+    
+    if(datasets.length === 0) return;
+
+    const c = 299792458;
+    let tStart = pathEst > 0 ? (pathEst/c) - 2e-9 : 0;
+    let tEnd = pathEst > 0 ? (pathEst/c) + 2e-9 : 50e-9;
+    let bestT = 0;
+    let minErr = Infinity;
+
+    for(let t = tStart; t <= tEnd; t += 1e-12) {
+        let currentErr = 0;
+        datasets.forEach(d => {
+            let predictedP = (360 * d.f * t) % 360;
+            let diff = Math.abs(d.p - predictedP);
+            if(diff > 180) diff = 360 - diff;
+            currentErr += diff * diff;
+        });
+        if(currentErr < minErr) {
+            minErr = currentErr;
+            bestT = t;
+        }
+    }
+
+    const corrPhase = (360 * fTarget * bestT) % 360;
+    const timeStr = bestT < 1e-9 ? (bestT*1e12).toFixed(1) + " ps" : (bestT*1e9).toFixed(3) + " ns";
+    
+    document.getElementById('corr-res').innerHTML = 
+        `Calc Time Shift: ${timeStr}<br>Phase Correction at Target: ${corrPhase.toFixed(2)}°`;
+}
+<br>Correction: ${((360*tf*bestT)%360).toFixed(2)}°`;
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-    const saved = localStorage.getItem('rf-theme') || 'light';
-    setTheme(saved);
-    const sel = document.querySelector('select[onchange^="setTheme"]');
-    if (sel) sel.value = saved;
-});
-
-const oldOpen = openScreen;
-openScreen = (id) => {
-    oldOpen(id);
+// Hook into existing screen logic
+const originalOpenScreen = openScreen;
+window.openScreen = function(id) {
+    originalOpenScreen(id);
     if (id === 'calc-bw') calcBW();
     if (id === 'calc-phase') { calcP1(); calcP2(); }
 }
@@ -197,6 +232,7 @@ body.grey-theme .overlay {
         <button class="nav-btn" onclick="openScreen('calc-fresnel')">Far Field / Fresnel Distance</button>
         <button class="nav-btn" onclick="openScreen('calc-bw')">Antenna BW & FOV</button>
         <button class="nav-btn" onclick="openScreen('calc-phase')">Phase / Time Converter</button>
+        <button class="nav-btn" onclick="openScreen('calc-corr')">Phase / Time Correction</button>
         <div class="footer-tag">created by Pivalet &copy; 2026</div>
 </div>
 
@@ -444,6 +480,66 @@ body.grey-theme .overlay {
         </div>
     </div>
 
+    
+    <!-- Phase / Time Correction Screen -->
+    <div id="calc-corr" class="screen">
+        <a href="#" class="back-link" onclick="goHome()">&larr; Back</a>
+        <button class="info-btn" onclick="showInfo('corr-info')">i</button>
+        <h2>Phase / Time Correction</h2>
+        
+        <div class="input-card">
+            <p style="font-size:0.8rem; color:var(--text); margin-bottom:10px;">Enter frequency and measured phase difference:</p>
+            <div id="corr-inputs">
+                <!-- 4 Rows of inputs -->
+                <div class="row" style="margin-bottom:5px;">
+                    <input type="number" class="corr-f" placeholder="Freq" style="width:30%;">
+                    <select class="corr-f-u" style="width:25%;">
+                        <option value="1">Hz</option><option value="1e3">kHz</option><option value="1e6" selected>MHz</option><option value="1e9">GHz</option>
+                    </select>
+                    <input type="number" class="corr-p" placeholder="Phase°" style="width:30%;">
+                </div>
+                <div class="row" style="margin-bottom:5px;">
+                    <input type="number" class="corr-f" placeholder="Freq" style="width:30%;">
+                    <select class="corr-f-u" style="width:25%;">
+                        <option value="1">Hz</option><option value="1e3">kHz</option><option value="1e6" selected>MHz</option><option value="1e9">GHz</option>
+                    </select>
+                    <input type="number" class="corr-p" placeholder="Phase°" style="width:30%;">
+                </div>
+                <div class="row" style="margin-bottom:5px;">
+                    <input type="number" class="corr-f" placeholder="Freq" style="width:30%;">
+                    <select class="corr-f-u" style="width:25%;">
+                        <option value="1">Hz</option><option value="1e3">kHz</option><option value="1e6" selected>MHz</option><option value="1e9">GHz</option>
+                    </select>
+                    <input type="number" class="corr-p" placeholder="Phase°" style="width:30%;">
+                </div>
+                <div class="row" style="margin-bottom:5px;">
+                    <input type="number" class="corr-f" placeholder="Freq" style="width:30%;">
+                    <select class="corr-f-u" style="width:25%;">
+                        <option value="1">Hz</option><option value="1e3">kHz</option><option value="1e6" selected>MHz</option><option value="1e9">GHz</option>
+                    </select>
+                    <input type="number" class="corr-p" placeholder="Phase°" style="width:30%;">
+                </div>
+            </div>
+
+            <label style="margin-top:10px; display:block;">Est. Path Length (m) - Optional</label>
+            <input type="number" id="corr-path" placeholder="e.g. 0.3" oninput="runCorr()">
+            
+            <label style="margin-top:10px; display:block;">Target Frequency</label>
+            <div class="row">
+                <input type="number" id="corr-f-target" value="1500" oninput="runCorr()">
+                <select id="corr-f-target-u" onchange="runCorr()">
+                    <option value="1">Hz</option><option value="1e3">kHz</option><option value="1e6" selected>MHz</option><option value="1e9">GHz</option>
+                </select>
+            </div>
+            <button class="nav-btn" onclick="runCorr()" style="margin-top:10px; width:100%;">Calculate Correction</button>
+        </div>
+
+        <div id="corr-res" class="result" style="margin-top:15px; font-weight:bold; color:var(--primary);">
+            Result: --
+        </div>
+    </div>
+
+
 <div id="bw-info" class="overlay">
     <button class="nav-btn" onclick="hideInfo()">CLOSE</button>
     <h3>Antenna BW & FOV</h3>
@@ -454,12 +550,16 @@ body.grey-theme .overlay {
         BW &approx; 50.7 &middot; &lambda; / (N &middot; d) <br>
         FOV &approx; 50.7 &middot; &lambda; / d
     </div>
-    <div class="diagram-box">
-        <svg width="300" height="160" viewBox="0 0 300 160">
+    <div class="diagram-box"><svg width="300" height="160" viewBox="0 0 300 160">
+            <!-- Wide Beam (FOV) -->
             <path d="M 150 150 Q 20 60 150 10 Q 280 60 150 150" fill="none" stroke="#e67e22" stroke-width="2" stroke-dasharray="5,5" />
-            <path d="M 150 150 Q 135 90 150 30 Q 165 90 150 150" fill="#004a99" opacity="0.7" />
-        </svg>
-    </div>
+            <!-- 5 Narrow Beams (Array) -->
+            <path d="M 150 150 Q 75 80 80 45" fill="#004a99" opacity="0.5" />
+            <path d="M 150 150 Q 105 85 115 35" fill="#004a99" opacity="0.6" />
+            <path d="M 150 150 Q 135 90 150 30 Q 165 90 150 150" fill="#004a99" opacity="0.8" />
+            <path d="M 150 150 Q 195 85 185 35" fill="#004a99" opacity="0.6" />
+            <path d="M 150 150 Q 225 80 220 45" fill="#004a99" opacity="0.5" />
+        </svg></div>
 </div>
 
 <div id="phase-info" class="overlay">
@@ -471,14 +571,44 @@ body.grey-theme .overlay {
     <div class="formula">
         &Delta;&phi; (deg) = 360 &middot; f &middot; t <br>
         t (sec) = &Delta;&phi; / (360 &middot; f)
+    </div><div class="diagram-box">
+        <svg width="300" height="120" viewBox="0 0 300 120">
+            <!-- Axis -->
+            <line x1="20" y1="60" x2="280" y2="60" stroke="#ccc" />
+            <!-- Reference Sine -->
+            <path d="M 20 60 Q 45 10 70 60 T 120 60 T 170 60 T 220 60 T 270 60" fill="none" stroke="#2c3e50" stroke-width="2" opacity="0.3" />
+            <!-- Delayed Sine -->
+            <path d="M 40 60 Q 65 10 90 60 T 140 60 T 190 60 T 240 60 T 290 60" fill="none" stroke="#e67e22" stroke-width="2" />
+            <!-- Delta T arrow -->
+            <line x1="70" y1="60" x2="90" y2="60" stroke="#004a99" stroke-width="2" marker-end="url(#arrow)" />
+            <text x="72" y="75" font-size="10" fill="#004a99">Δt / Δφ</text>
+            <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#004a99" />
+                </marker>
+            </defs>
+        </svg>
     </div>
-    <div class="diagram-box">
-        <svg width="300" height="150" viewBox="0 0 300 150">
-            <!-- Sine Wave 1 -->
-            <path d="M 0 75 Q 37.5 25 75 75 Q 112.5 125 150 75 Q 187.5 25 225 75 Q 262.5 125 300 75" fill="none" stroke="#ccc" stroke-width="2" />
-            <!-- Shifted Sine Wave -->
-            <path d="M 30 75 Q 67.5 25 105 75 Q 142.5 125 180 75 Q 217.5 25 255 75 Q 292.5 125 300 115" fill="none" stroke="#004a99" stroke-width="2" />
-            <text x="5" y="20" font-size="12" fill="#004a99">Blue wave is shifted in time/phase</text>
+</div>
+
+<div id="corr-info" class="overlay">
+    <button class="nav-btn" onclick="hideInfo()">CLOSE</button>
+    <h3>Phase Correction</h3>
+    <div class="explanation">Matches multiple phase measurements to solve for the time-domain shift.</div>
+    <div class="formula">&Delta;&phi; &approx; (360 &middot; f &middot; &Delta;t) mod 360</div><div class="diagram-box">
+        <svg width="300" height="140" viewBox="0 0 300 140">
+            <!-- Axes -->
+            <line x1="30" y1="120" x2="280" y2="120" stroke="#2c3e50" stroke-width="1.5" />
+            <line x1="30" y1="120" x2="30" y2="20" stroke="#2c3e50" stroke-width="1.5" />
+            <text x="250" y="135" font-size="10">Freq</text>
+            <text x="5" y="70" font-size="10" transform="rotate(-90 5,70)">Phase</text>
+            <!-- Data Points -->
+            <circle cx="80" cy="90" r="3" fill="#e67e22" />
+            <circle cx="140" cy="65" r="3" fill="#e67e22" />
+            <circle cx="200" cy="40" r="3" fill="#e67e22" />
+            <!-- Trend line (Slope = Δt) -->
+            <line x1="30" y1="110" x2="260" y2="15" stroke="#004a99" stroke-width="1.5" stroke-dasharray="4" />
+            <text x="140" y="30" font-size="10" fill="#004a99">Slope = Δt</text>
         </svg>
     </div>
 </div>
@@ -698,7 +828,7 @@ function calcP1() {
 function calcP2() {
     const f = (parseFloat(document.getElementById('p2-f').value) || 0) * parseFloat(document.getElementById('p2-f-u').value);
     const p = parseFloat(document.getElementById('p2-p').value) || 0;
-    if (f === 0) { document.getElementById('p2-res').innerText = "Time: --"; return; }
+    if (f === 0) return;
     const t = p / (360 * f);
     let resText = "";
     if (t < 1e-9) resText = (t * 1e12).toFixed(3) + " ps";
@@ -707,21 +837,36 @@ function calcP2() {
     document.getElementById('p2-res').innerText = "Time: " + resText;
 }
 
-function setTheme(val) {
-    document.body.className = val + '-theme';
-    localStorage.setItem('rf-theme', val);
+function runCorr() {
+    const fs = document.querySelectorAll('.cf'), us = document.querySelectorAll('.cu'), ps = document.querySelectorAll('.cp');
+    const path = parseFloat(document.getElementById('corr-path').value) || 0;
+    const tf = parseFloat(document.getElementById('ct-f').value) * parseFloat(document.getElementById('ct-u').value);
+    let data = [];
+    for(let i=0; i<fs.length; i++) {
+        let f = parseFloat(fs[i].value) * parseFloat(us[i].value), p = parseFloat(ps[i].value);
+        if(!isNaN(f) && !isNaN(p)) data.push({f, p});
+    }
+    if(data.length === 0) return;
+    const c = 299792458;
+    let tStart = path > 0 ? (path/c) - 1e-9 : 0, tEnd = path > 0 ? (path/c) + 1e-9 : 50e-9;
+    let bestT = 0, minErr = Infinity;
+    for(let t = tStart; t <= tEnd; t += 1e-12) {
+        let err = 0;
+        data.forEach(d => {
+            let diff = Math.abs(d.p - (360 * d.f * t % 360));
+            if(diff > 180) diff = 360 - diff;
+            err += diff * diff;
+        });
+        if(err < minErr) { minErr = err; bestT = t; }
+    }
+    const tStr = bestT < 1e-9 ? (bestT*1e12).toFixed(1) + " ps" : (bestT*1e9).toFixed(3) + " ns";
+    document.getElementById('corr-res').innerHTML = `Time Shift: ${tStr}<br>Correction: ${((360*tf*bestT)%360).toFixed(2)}°`;
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-    const saved = localStorage.getItem('rf-theme') || 'light';
-    setTheme(saved);
-    const sel = document.querySelector('select[onchange^="setTheme"]');
-    if (sel) sel.value = saved;
-});
-
-const oldOpen = openScreen;
-openScreen = (id) => {
-    oldOpen(id);
+// Hook into existing screen logic
+const originalOpenScreen = openScreen;
+window.openScreen = function(id) {
+    originalOpenScreen(id);
     if (id === 'calc-bw') calcBW();
     if (id === 'calc-phase') { calcP1(); calcP2(); }
 }
@@ -813,7 +958,7 @@ function calcP1() {
 function calcP2() {
     const f = (parseFloat(document.getElementById('p2-f').value) || 0) * parseFloat(document.getElementById('p2-f-u').value);
     const p = parseFloat(document.getElementById('p2-p').value) || 0;
-    if (f === 0) { document.getElementById('p2-res').innerText = "Time: --"; return; }
+    if (f === 0) return;
     const t = p / (360 * f);
     let resText = "";
     if (t < 1e-9) resText = (t * 1e12).toFixed(3) + " ps";
@@ -822,21 +967,36 @@ function calcP2() {
     document.getElementById('p2-res').innerText = "Time: " + resText;
 }
 
-function setTheme(val) {
-    document.body.className = val + '-theme';
-    localStorage.setItem('rf-theme', val);
+function runCorr() {
+    const fs = document.querySelectorAll('.cf'), us = document.querySelectorAll('.cu'), ps = document.querySelectorAll('.cp');
+    const path = parseFloat(document.getElementById('corr-path').value) || 0;
+    const tf = parseFloat(document.getElementById('ct-f').value) * parseFloat(document.getElementById('ct-u').value);
+    let data = [];
+    for(let i=0; i<fs.length; i++) {
+        let f = parseFloat(fs[i].value) * parseFloat(us[i].value), p = parseFloat(ps[i].value);
+        if(!isNaN(f) && !isNaN(p)) data.push({f, p});
+    }
+    if(data.length === 0) return;
+    const c = 299792458;
+    let tStart = path > 0 ? (path/c) - 1e-9 : 0, tEnd = path > 0 ? (path/c) + 1e-9 : 50e-9;
+    let bestT = 0, minErr = Infinity;
+    for(let t = tStart; t <= tEnd; t += 1e-12) {
+        let err = 0;
+        data.forEach(d => {
+            let diff = Math.abs(d.p - (360 * d.f * t % 360));
+            if(diff > 180) diff = 360 - diff;
+            err += diff * diff;
+        });
+        if(err < minErr) { minErr = err; bestT = t; }
+    }
+    const tStr = bestT < 1e-9 ? (bestT*1e12).toFixed(1) + " ps" : (bestT*1e9).toFixed(3) + " ns";
+    document.getElementById('corr-res').innerHTML = `Time Shift: ${tStr}<br>Correction: ${((360*tf*bestT)%360).toFixed(2)}°`;
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-    const saved = localStorage.getItem('rf-theme') || 'light';
-    setTheme(saved);
-    const sel = document.querySelector('select[onchange^="setTheme"]');
-    if (sel) sel.value = saved;
-});
-
-const oldOpen = openScreen;
-openScreen = (id) => {
-    oldOpen(id);
+// Hook into existing screen logic
+const originalOpenScreen = openScreen;
+window.openScreen = function(id) {
+    originalOpenScreen(id);
     if (id === 'calc-bw') calcBW();
     if (id === 'calc-phase') { calcP1(); calcP2(); }
 }
@@ -893,7 +1053,7 @@ function calcP1() {
 function calcP2() {
     const f = (parseFloat(document.getElementById('p2-f').value) || 0) * parseFloat(document.getElementById('p2-f-u').value);
     const p = parseFloat(document.getElementById('p2-p').value) || 0;
-    if (f === 0) { document.getElementById('p2-res').innerText = "Time: --"; return; }
+    if (f === 0) return;
     const t = p / (360 * f);
     let resText = "";
     if (t < 1e-9) resText = (t * 1e12).toFixed(3) + " ps";
@@ -902,21 +1062,36 @@ function calcP2() {
     document.getElementById('p2-res').innerText = "Time: " + resText;
 }
 
-function setTheme(val) {
-    document.body.className = val + '-theme';
-    localStorage.setItem('rf-theme', val);
+function runCorr() {
+    const fs = document.querySelectorAll('.cf'), us = document.querySelectorAll('.cu'), ps = document.querySelectorAll('.cp');
+    const path = parseFloat(document.getElementById('corr-path').value) || 0;
+    const tf = parseFloat(document.getElementById('ct-f').value) * parseFloat(document.getElementById('ct-u').value);
+    let data = [];
+    for(let i=0; i<fs.length; i++) {
+        let f = parseFloat(fs[i].value) * parseFloat(us[i].value), p = parseFloat(ps[i].value);
+        if(!isNaN(f) && !isNaN(p)) data.push({f, p});
+    }
+    if(data.length === 0) return;
+    const c = 299792458;
+    let tStart = path > 0 ? (path/c) - 1e-9 : 0, tEnd = path > 0 ? (path/c) + 1e-9 : 50e-9;
+    let bestT = 0, minErr = Infinity;
+    for(let t = tStart; t <= tEnd; t += 1e-12) {
+        let err = 0;
+        data.forEach(d => {
+            let diff = Math.abs(d.p - (360 * d.f * t % 360));
+            if(diff > 180) diff = 360 - diff;
+            err += diff * diff;
+        });
+        if(err < minErr) { minErr = err; bestT = t; }
+    }
+    const tStr = bestT < 1e-9 ? (bestT*1e12).toFixed(1) + " ps" : (bestT*1e9).toFixed(3) + " ns";
+    document.getElementById('corr-res').innerHTML = `Time Shift: ${tStr}<br>Correction: ${((360*tf*bestT)%360).toFixed(2)}°`;
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-    const saved = localStorage.getItem('rf-theme') || 'light';
-    setTheme(saved);
-    const sel = document.querySelector('select[onchange^="setTheme"]');
-    if (sel) sel.value = saved;
-});
-
-const oldOpen = openScreen;
-openScreen = (id) => {
-    oldOpen(id);
+// Hook into existing screen logic
+const originalOpenScreen = openScreen;
+window.openScreen = function(id) {
+    originalOpenScreen(id);
     if (id === 'calc-bw') calcBW();
     if (id === 'calc-phase') { calcP1(); calcP2(); }
 }
@@ -1022,7 +1197,7 @@ function calcP1() {
 function calcP2() {
     const f = (parseFloat(document.getElementById('p2-f').value) || 0) * parseFloat(document.getElementById('p2-f-u').value);
     const p = parseFloat(document.getElementById('p2-p').value) || 0;
-    if (f === 0) { document.getElementById('p2-res').innerText = "Time: --"; return; }
+    if (f === 0) return;
     const t = p / (360 * f);
     let resText = "";
     if (t < 1e-9) resText = (t * 1e12).toFixed(3) + " ps";
@@ -1031,21 +1206,36 @@ function calcP2() {
     document.getElementById('p2-res').innerText = "Time: " + resText;
 }
 
-function setTheme(val) {
-    document.body.className = val + '-theme';
-    localStorage.setItem('rf-theme', val);
+function runCorr() {
+    const fs = document.querySelectorAll('.cf'), us = document.querySelectorAll('.cu'), ps = document.querySelectorAll('.cp');
+    const path = parseFloat(document.getElementById('corr-path').value) || 0;
+    const tf = parseFloat(document.getElementById('ct-f').value) * parseFloat(document.getElementById('ct-u').value);
+    let data = [];
+    for(let i=0; i<fs.length; i++) {
+        let f = parseFloat(fs[i].value) * parseFloat(us[i].value), p = parseFloat(ps[i].value);
+        if(!isNaN(f) && !isNaN(p)) data.push({f, p});
+    }
+    if(data.length === 0) return;
+    const c = 299792458;
+    let tStart = path > 0 ? (path/c) - 1e-9 : 0, tEnd = path > 0 ? (path/c) + 1e-9 : 50e-9;
+    let bestT = 0, minErr = Infinity;
+    for(let t = tStart; t <= tEnd; t += 1e-12) {
+        let err = 0;
+        data.forEach(d => {
+            let diff = Math.abs(d.p - (360 * d.f * t % 360));
+            if(diff > 180) diff = 360 - diff;
+            err += diff * diff;
+        });
+        if(err < minErr) { minErr = err; bestT = t; }
+    }
+    const tStr = bestT < 1e-9 ? (bestT*1e12).toFixed(1) + " ps" : (bestT*1e9).toFixed(3) + " ns";
+    document.getElementById('corr-res').innerHTML = `Time Shift: ${tStr}<br>Correction: ${((360*tf*bestT)%360).toFixed(2)}°`;
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-    const saved = localStorage.getItem('rf-theme') || 'light';
-    setTheme(saved);
-    const sel = document.querySelector('select[onchange^="setTheme"]');
-    if (sel) sel.value = saved;
-});
-
-const oldOpen = openScreen;
-openScreen = (id) => {
-    oldOpen(id);
+// Hook into existing screen logic
+const originalOpenScreen = openScreen;
+window.openScreen = function(id) {
+    originalOpenScreen(id);
     if (id === 'calc-bw') calcBW();
     if (id === 'calc-phase') { calcP1(); calcP2(); }
 }
