@@ -1274,5 +1274,52 @@ window.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
+
+<script>
+function runCorr() {
+    const fElems = document.querySelectorAll('.corr-f');
+    const uElems = document.querySelectorAll('.corr-f-u');
+    const pElems = document.querySelectorAll('.corr-p');
+    const pathEst = parseFloat(document.getElementById('corr-path').value) || 0;
+    const targetFreqInput = parseFloat(document.getElementById('corr-f-target').value);
+    const targetFreqUnit = parseFloat(document.getElementById('corr-f-target-u').value);
+    const fTarget = (isNaN(targetFreqInput) ? 0 : targetFreqInput) * targetFreqUnit;
+    let datasets = [];
+    for (let i = 0; i < fElems.length; i++) {
+        const fVal = parseFloat(fElems[i].value);
+        const uVal = parseFloat(uElems[i].value);
+        const pVal = parseFloat(pElems[i].value);
+        if (!isNaN(fVal) && !isNaN(pVal)) {
+            datasets.push({f: fVal * uVal, p: pVal});
+        }
+    }
+    if (datasets.length === 0) {
+        document.getElementById('corr-res').innerHTML = 'Result: --';
+        return;
+    }
+    const c = 299792458;
+    let tStart = pathEst > 0 ? (pathEst / c) - 2e-9 : 0;
+    let tEnd = pathEst > 0 ? (pathEst / c) + 2e-9 : 50e-9;
+    let bestT = 0;
+    let minErr = Infinity;
+    for (let t = tStart; t <= tEnd; t += 1e-12) {
+        let currentErr = 0;
+        datasets.forEach(d => {
+            let predictedP = (360 * d.f * t) % 360;
+            let diff = Math.abs(d.p - predictedP);
+            if (diff > 180) diff = 360 - diff;
+            currentErr += diff * diff;
+        });
+        if (currentErr < minErr) {
+            minErr = currentErr;
+            bestT = t;
+        }
+    }
+    const corrPhase = fTarget > 0 ? ((360 * fTarget * bestT) % 360) : 0;
+    const timeStr = bestT < 1e-9 ? (bestT * 1e12).toFixed(1) + ' ps' : (bestT * 1e9).toFixed(3) + ' ns';
+    document.getElementById('corr-res').innerHTML = 'Calc Time Shift: ' + timeStr + '<br>Phase Correction at Target: ' + corrPhase.toFixed(2) + '°';
+}
+</script>
 </body>
+
 </html>
